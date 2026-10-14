@@ -10,7 +10,10 @@ let memoryServerInstance = null;
 let isPersistentLocal = false;
 
 export const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI;
+  let mongoUri = process.env.MONGODB_URI;
+  if (mongoUri && mongoUri.trim().startsWith('ongodb')) {
+    mongoUri = 'm' + mongoUri.trim();
+  }
 
   // 1. Attempt connection to configured MONGODB_URI (e.g. MongoDB Atlas or running service)
   if (mongoUri) {
