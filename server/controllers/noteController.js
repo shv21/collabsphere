@@ -4,7 +4,7 @@ import { logActivity } from '../services/activityService.js';
 import { isValidObjectId } from '../utils/validators.js';
 
 // Helper to check user membership in note's project
-const verifyNoteProjectAccess = async (noteId, userId) => {
+const verifyNoteProjectAccess = async (noteId, userId, allowViewer = false) => {
   if (!isValidObjectId(noteId)) return null;
 
   const note = await Note.findById(noteId).populate('project');
@@ -18,7 +18,7 @@ const verifyNoteProjectAccess = async (noteId, userId) => {
     (m) => m.user && (m.user._id ? m.user._id.toString() === userIdStr : m.user.toString() === userIdStr)
   );
 
-  if (!isOwner && !isMember) return null;
+  if (!isOwner && !isMember && !(allowViewer && project.isPublic)) return null;
 
   return { note, project };
 };
@@ -82,7 +82,7 @@ export const createNote = async (req, res, next) => {
 export const getNoteById = async (req, res, next) => {
   try {
     const { noteId } = req.params;
-    const result = await verifyNoteProjectAccess(noteId, req.user._id);
+    const result = await verifyNoteProjectAccess(noteId, req.user._id, true);
 
     if (!result) {
       return res.status(404).json({

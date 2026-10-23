@@ -30,6 +30,7 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editName, setEditName] = useState(project.name || '');
   const [editDescription, setEditDescription] = useState(project.description || '');
+  const [editIsPublic, setEditIsPublic] = useState(!!project.isPublic);
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -45,6 +46,7 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
       await api.patch(`/projects/${project._id}`, {
         name: editName.trim(),
         description: editDescription.trim(),
+        isPublic: editIsPublic,
       });
       success('Project updated successfully');
       setIsEditModalOpen(false);
@@ -76,7 +78,18 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h2 className="text-xl font-bold text-slate-100 tracking-tight">{project.name}</h2>
-              <Badge variant={isOwner ? 'primary' : 'default'} size="xs">
+              <Badge
+                variant={
+                  isOwner
+                    ? 'primary'
+                    : userRole === 'admin'
+                    ? 'warning'
+                    : userRole === 'viewer'
+                    ? 'outline'
+                    : 'default'
+                }
+                size="xs"
+              >
                 {userRole}
               </Badge>
               <Badge variant={project.isPublic ? 'success' : 'default'} size="xs">
@@ -98,6 +111,7 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
                 onClick={() => {
                   setEditName(project.name);
                   setEditDescription(project.description || '');
+                  setEditIsPublic(!!project.isPublic);
                   setIsEditModalOpen(true);
                 }}
               >
@@ -183,14 +197,16 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
             <h3 className="text-sm font-semibold">Project README.md</h3>
           </div>
 
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={Sparkles}
-            onClick={() => onNavigateTab('ai')}
-          >
-            {project.readme ? 'Regenerate / Edit' : 'Generate with AI'}
-          </Button>
+          {canManage && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={Sparkles}
+              onClick={() => onNavigateTab('ai')}
+            >
+              {project.readme ? 'Regenerate / Edit' : 'Generate with AI'}
+            </Button>
+          )}
         </div>
 
         {project.readme ? (
@@ -200,14 +216,16 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
         ) : (
           <div className="text-center py-8 text-xs text-slate-400">
             <p className="mb-3">No README documentation has been saved for this project yet.</p>
-            <Button
-              size="sm"
-              variant="outline"
-              icon={Sparkles}
-              onClick={() => onNavigateTab('ai')}
-            >
-              Generate structured README now
-            </Button>
+            {canManage && (
+              <Button
+                size="sm"
+                variant="outline"
+                icon={Sparkles}
+                onClick={() => onNavigateTab('ai')}
+              >
+                Generate structured README now
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -231,6 +249,62 @@ export const OverviewTab = ({ project, userRole, onProjectUpdated, onNavigateTab
             onChange={(e) => setEditDescription(e.target.value)}
             rows={3}
           />
+
+          {/* Visibility selection in edit modal */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-300 select-none">Visibility Setting</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all duration-150 select-none ${
+                  !editIsPublic
+                    ? 'bg-indigo-950/20 border-indigo-500/50 shadow-subtle'
+                    : 'bg-[#151922] border-[#232936] hover:border-[#384357]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="editVisibility"
+                  checked={!editIsPublic}
+                  onChange={() => setEditIsPublic(false)}
+                  className="mt-0.5 text-indigo-600 focus:ring-indigo-500/50"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    Private Project
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Only members can view.
+                  </p>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all duration-150 select-none ${
+                  editIsPublic
+                    ? 'bg-indigo-950/20 border-indigo-500/50 shadow-subtle'
+                    : 'bg-[#151922] border-[#232936] hover:border-[#384357]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="editVisibility"
+                  checked={editIsPublic}
+                  onChange={() => setEditIsPublic(true)}
+                  className="mt-0.5 text-indigo-600 focus:ring-indigo-500/50"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                    <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                    Public Project
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Visible to other users.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-[#1f2532]">
             <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(false)}>
               Cancel

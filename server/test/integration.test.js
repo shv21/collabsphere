@@ -50,8 +50,35 @@ async function runTests() {
   user2 = reg2Res.user;
   console.log(`✓ User 2 registered: ${user2.name} (${user2.email})`);
 
-  // 4. Create Project
-  console.log('Testing Project Creation...');
+  // 4a. Create Private Project
+  console.log('Testing Private Project Creation...');
+  const createPrivateRes = await fetch(`${BASE_URL}/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token1}`,
+    },
+    body: JSON.stringify({
+      name: 'internal-kernel-module',
+      description: 'Confidential hardware drivers and core routines',
+      isPublic: false,
+    }),
+  }).then((r) => r.json());
+
+  assert.strictEqual(createPrivateRes.success, true);
+  const privateProjectId = createPrivateRes.project._id;
+  console.log(`✓ Private project created: ${createPrivateRes.project.name}`);
+
+  // 4b. Non-member User 2 CANNOT access private project
+  console.log('Testing Private Project Isolation: User 2 cannot access private project...');
+  const unauthPrivateRes = await fetch(`${BASE_URL}/projects/${privateProjectId}`, {
+    headers: { Authorization: `Bearer ${token2}` },
+  });
+  assert.strictEqual(unauthPrivateRes.status, 403);
+  console.log('✓ Private project access correctly blocked with 403 Forbidden for non-member');
+
+  // 4c. Create Public Project
+  console.log('Testing Public Project Creation...');
   const createProjRes = await fetch(`${BASE_URL}/projects`, {
     method: 'POST',
     headers: {
@@ -70,15 +97,45 @@ async function runTests() {
   assert.ok(createProjRes.project.shareToken);
   projectId = createProjRes.project._id;
   shareToken = createProjRes.project.shareToken;
-  console.log(`✓ Project created: ${createProjRes.project.name} (ID: ${projectId})`);
+  console.log(`✓ Public project created: ${createProjRes.project.name} (ID: ${projectId})`);
 
-  // 5. Unauthorized User 2 cannot access before being added
-  console.log('Testing Backend Authorization: Non-member cannot access private routes...');
-  const unauthRes = await fetch(`${BASE_URL}/projects/${projectId}`, {
+  // 5a. Public Project IS visible to User 2 in projects list
+  console.log('Testing Public Project Visibility: User 2 sees public project in projects list...');
+  const user2ProjectsRes = await fetch(`${BASE_URL}/projects`, {
     headers: { Authorization: `Bearer ${token2}` },
+  }).then((r) => r.json());
+
+  assert.strictEqual(user2ProjectsRes.success, true);
+  const foundPublic = user2ProjectsRes.projects.find((p) => p._id === projectId);
+  assert.ok(foundPublic, 'Public project must be listed for other users');
+  assert.strictEqual(foundPublic.currentUserRole, 'viewer');
+  const foundPrivate = user2ProjectsRes.projects.find((p) => p._id === privateProjectId);
+  assert.strictEqual(foundPrivate, undefined, 'Private project must NOT be listed for non-members');
+  console.log('✓ Public project is visible to User 2 as viewer, private project remains hidden');
+
+  // 5b. User 2 can view public project details
+  console.log('Testing Public Project View Access: User 2 can view public project details...');
+  const viewerViewRes = await fetch(`${BASE_URL}/projects/${projectId}`, {
+    headers: { Authorization: `Bearer ${token2}` },
+  }).then((r) => r.json());
+  assert.strictEqual(viewerViewRes.success, true);
+  assert.strictEqual(viewerViewRes.currentUserRole, 'viewer');
+
+  // 5c. User 2 cannot write notes as viewer (requires member)
+  console.log('Testing Viewer Restriction: Viewer cannot create notes...');
+  const viewerWriteRes = await fetch(`${BASE_URL}/projects/${projectId}/notes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token2}`,
+    },
+    body: JSON.stringify({
+      title: 'Unauthorized Note',
+      content: 'This should fail',
+    }),
   });
-  assert.strictEqual(unauthRes.status, 403);
-  console.log('✓ Unauthorized access successfully blocked with 403 Forbidden');
+  assert.strictEqual(viewerWriteRes.status, 403);
+  console.log('✓ Viewer write action correctly blocked with 403 Forbidden');
 
   // 6. Add User 2 to Project as Member
   console.log('Testing Adding Member by Email...');

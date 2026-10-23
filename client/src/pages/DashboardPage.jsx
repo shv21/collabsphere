@@ -51,12 +51,14 @@ export const DashboardPage = () => {
   const filteredProjects = projects.filter((p) => {
     const matchesSearch =
       p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      p.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.owner?.name?.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
     if (roleFilter === 'owner') return p.currentUserRole === 'owner';
-    if (roleFilter === 'member') return p.currentUserRole !== 'owner';
+    if (roleFilter === 'member') return p.currentUserRole === 'member' || p.currentUserRole === 'admin';
+    if (roleFilter === 'public') return p.isPublic;
     return true;
   });
 
@@ -94,7 +96,7 @@ export const DashboardPage = () => {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
         <div className="relative w-full sm:w-80">
           <Input
-            placeholder="Search projects..."
+            placeholder="Search projects by name, description, or author..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={Search}
@@ -122,9 +124,10 @@ export const DashboardPage = () => {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full sm:w-auto appearance-none bg-[#12161f] border border-[#262d3a] hover:border-[#384357] text-xs font-medium text-slate-200 rounded-lg pl-3 pr-8 py-2 h-9 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/80 cursor-pointer"
             >
-              <option value="all">All Roles</option>
+              <option value="all">All Projects</option>
               <option value="owner">Owned by me</option>
               <option value="member">Shared with me</option>
+              <option value="public">Public Projects</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -174,7 +177,15 @@ export const DashboardPage = () => {
                   </h3>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Badge
-                      variant={project.currentUserRole === 'owner' ? 'primary' : 'default'}
+                      variant={
+                        project.currentUserRole === 'owner'
+                          ? 'primary'
+                          : project.currentUserRole === 'admin'
+                          ? 'warning'
+                          : project.currentUserRole === 'viewer'
+                          ? 'outline'
+                          : 'default'
+                      }
                       size="xs"
                     >
                       {project.currentUserRole || 'member'}
@@ -201,6 +212,11 @@ export const DashboardPage = () => {
                     )}
                     <span>{project.isPublic ? 'Public' : 'Private'}</span>
                   </span>
+                  {project.owner?.name && project.currentUserRole !== 'owner' && (
+                    <span className="text-[11px] text-slate-400 truncate max-w-[120px]" title={`Created by ${project.owner.name}`}>
+                      by {project.owner.name}
+                    </span>
+                  )}
                 </div>
 
                 <span className="font-mono text-slate-400 text-[11px]">

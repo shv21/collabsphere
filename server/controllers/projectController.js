@@ -13,23 +13,34 @@ export const getMyProjects = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // Find projects where user is owner OR listed in members
+    // Find projects where user is owner OR listed in members OR project is public
     const projects = await Project.find({
-      $or: [{ owner: userId }, { 'members.user': userId }],
+      $or: [
+        { owner: userId },
+        { 'members.user': userId },
+        { isPublic: true },
+      ],
     })
       .sort({ updatedAt: -1 })
       .populate('owner', 'name email');
 
     // Attach current user's specific role to each returned project
     const formatted = projects.map((proj) => {
-      let role = 'member';
-      if (proj.owner._id.toString() === userId.toString()) {
+      let role = 'viewer';
+      const ownerId = proj.owner?._id ? proj.owner._id.toString() : proj.owner?.toString();
+      const currentUserIdStr = userId.toString();
+
+      if (ownerId === currentUserIdStr) {
         role = 'owner';
       } else {
-        const mem = proj.members.find(
-          (m) => m.user.toString() === userId.toString()
+        const mem = proj.members?.find(
+          (m) => m.user && (m.user._id ? m.user._id.toString() === currentUserIdStr : m.user.toString() === currentUserIdStr)
         );
-        if (mem) role = mem.role;
+        if (mem) {
+          role = mem.role || 'member';
+        } else if (proj.isPublic) {
+          role = 'viewer';
+        }
       }
 
       return {
@@ -39,8 +50,13 @@ export const getMyProjects = async (req, res, next) => {
         isPublic: proj.isPublic,
         notesCount: proj.notesCount,
         filesCount: proj.filesCount,
-        membersCount: proj.members.length,
+        membersCount: proj.members?.length || 1,
         currentUserRole: role,
+        owner: proj.owner ? {
+          _id: proj.owner._id,
+          name: proj.owner.name,
+          email: proj.owner.email,
+        } : undefined,
         createdAt: proj.createdAt,
         updatedAt: proj.updatedAt,
       };
@@ -130,11 +146,11 @@ export const getProjectById = async (req, res, next) => {
   }
 };
 
-// @desc    Update project metadata (name, description, readme)
+// @desc    Update project metadata (name, description, readme, isPublic)
 // @route   PATCH /api/projects/:projectId
 export const updateProject = async (req, res, next) => {
   try {
-    const { name, description, readme } = req.body;
+    const { name, description, readme, isPublic } = req.body;
     const project = req.project;
 
     let changesMade = false;
@@ -156,6 +172,24 @@ export const updateProject = async (req, res, next) => {
         type: 'readme_saved',
         message: 'updated project README documentation',
       });
+    }
+    if (isPublic !== undefined) {
+      const newIsPublic = !!isPublic;
+      if (project.isPublic !== newIsPublic) {
+        project.isPublic = newIsPublic;
+        if (newIsPublic && !project.shareToken) {
+          project.shareToken = crypto.randomBytes(24).toString('hex');
+        } else if (!newIsPublic) {
+          project.shareToken = null;
+        }
+        changesMade = true;
+        await logActivity({
+          projectId: project._id,
+          actorId: req.user._id,
+          type: 'visibility_changed',
+          message: `changed project visibility to ${newIsPublic ? 'public' : 'private'}`,
+        });
+      }
     }
 
     if (changesMade) {

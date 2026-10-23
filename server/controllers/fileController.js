@@ -6,7 +6,7 @@ import { logActivity } from '../services/activityService.js';
 import { isValidObjectId, isAllowedCodeFile, isAllowedImageFile } from '../utils/validators.js';
 
 // Helper to check user membership in file's project
-const verifyFileProjectAccess = async (fileId, userId) => {
+const verifyFileProjectAccess = async (fileId, userId, allowViewer = false) => {
   if (!isValidObjectId(fileId)) return null;
 
   const file = await File.findById(fileId).populate('project');
@@ -20,7 +20,7 @@ const verifyFileProjectAccess = async (fileId, userId) => {
     (m) => m.user && (m.user._id ? m.user._id.toString() === userIdStr : m.user.toString() === userIdStr)
   );
 
-  if (!isOwner && !isMember) return null;
+  if (!isOwner && !isMember && !(allowViewer && project.isPublic)) return null;
 
   return { file, project };
 };
@@ -110,7 +110,7 @@ export const uploadFile = async (req, res, next) => {
 export const getFileById = async (req, res, next) => {
   try {
     const { fileId } = req.params;
-    const result = await verifyFileProjectAccess(fileId, req.user._id);
+    const result = await verifyFileProjectAccess(fileId, req.user._id, true);
 
     if (!result) {
       return res.status(404).json({
@@ -151,7 +151,7 @@ export const getFileById = async (req, res, next) => {
 export const downloadFile = async (req, res, next) => {
   try {
     const { fileId } = req.params;
-    const result = await verifyFileProjectAccess(fileId, req.user._id);
+    const result = await verifyFileProjectAccess(fileId, req.user._id, true);
 
     if (!result) {
       return res.status(404).json({

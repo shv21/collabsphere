@@ -13,7 +13,10 @@ export const checkProjectAccess = (requiredRole = 'member') => {
     }
 
     try {
-      const project = await Project.findById(projectId).populate('members.user', 'name email');
+      const project = await Project.findById(projectId)
+        .populate('members.user', 'name email')
+        .populate('owner', 'name email');
+
       if (!project) {
         return res.status(404).json({
           success: false,
@@ -22,9 +25,12 @@ export const checkProjectAccess = (requiredRole = 'member') => {
       }
 
       const userIdStr = req.user._id.toString();
+      const ownerIdStr = project.owner?._id
+        ? project.owner._id.toString()
+        : project.owner?.toString();
 
       // Check if user is owner
-      if (project.owner.toString() === userIdStr) {
+      if (ownerIdStr === userIdStr) {
         req.project = project;
         req.userRole = 'owner';
         return next();
@@ -35,29 +41,41 @@ export const checkProjectAccess = (requiredRole = 'member') => {
         (m) => m.user && (m.user._id ? m.user._id.toString() === userIdStr : m.user.toString() === userIdStr)
       );
 
-      if (!memberEntry) {
+      let role = null;
+      if (memberEntry) {
+        role = memberEntry.role || 'member';
+      } else if (project.isPublic) {
+        role = 'viewer';
+      } else {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You are not a member of this project.',
         });
       }
 
-      const role = memberEntry.role || 'member';
       req.project = project;
       req.userRole = role;
 
-      // Role check: 'owner' > 'admin' > 'member'
-      if (requiredRole === 'owner') {
-        return res.status(403).json({
-          success: false,
-          message: 'Action restricted to project owner only.',
-        });
-      }
+      const ROLE_HIERARCHY = {
+        viewer: 1,
+        member: 2,
+        admin: 3,
+        owner: 4,
+      };
 
-      if (requiredRole === 'admin' && role !== 'admin') {
+      const userLevel = ROLE_HIERARCHY[role] || 0;
+      const requiredLevel = ROLE_HIERARCHY[requiredRole] || 2;
+
+      if (userLevel < requiredLevel) {
+        const messages = {
+          owner: 'Action restricted to project owner only.',
+          admin: 'Action restricted to project admins or owner.',
+          member: 'Action restricted to project members only.',
+          viewer: 'Access denied.',
+        };
         return res.status(403).json({
           success: false,
-          message: 'Action restricted to project admins or owner.',
+          message: messages[requiredRole] || 'Access denied.',
         });
       }
 

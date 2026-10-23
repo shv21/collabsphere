@@ -28,7 +28,7 @@ router.get('/', getMyProjects);
 router.post('/', createProject);
 
 // Single project
-router.get('/:projectId', checkProjectAccess('member'), getProjectById);
+router.get('/:projectId', checkProjectAccess('viewer'), getProjectById);
 router.patch('/:projectId', checkProjectAccess('admin'), updateProject);
 router.delete('/:projectId', checkProjectAccess('owner'), deleteProject);
 
@@ -41,11 +41,11 @@ router.post('/:projectId/members', checkProjectAccess('admin'), addMember);
 router.delete('/:projectId/members/:userId', checkProjectAccess('admin'), removeMember);
 
 // Notes nested routes
-router.get('/:projectId/notes', checkProjectAccess('member'), getProjectNotes);
+router.get('/:projectId/notes', checkProjectAccess('viewer'), getProjectNotes);
 router.post('/:projectId/notes', checkProjectAccess('member'), createNote);
 
 // Files nested routes
-router.get('/:projectId/files', checkProjectAccess('member'), getProjectFiles);
+router.get('/:projectId/files', checkProjectAccess('viewer'), getProjectFiles);
 router.post(
   '/:projectId/files',
   checkProjectAccess('member'),
@@ -54,7 +54,7 @@ router.post(
 );
 
 // Activity & Analytics
-router.get('/:projectId/activity', checkProjectAccess('member'), getProjectActivity);
-router.get('/:projectId/analytics', checkProjectAccess('member'), getProjectAnalytics);
+router.get('/:projectId/activity', checkProjectAccess('viewer'), getProjectActivity);
+router.get('/:projectId/analytics', checkProjectAccess('viewer'), getProjectAnalytics);
 
 export default router;

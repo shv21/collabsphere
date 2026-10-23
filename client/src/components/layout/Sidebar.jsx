@@ -34,6 +34,7 @@ export const Sidebar = ({
     owner: 'primary',
     admin: 'warning',
     member: 'default',
+    viewer: 'outline',
   };
 
   return (
